@@ -1,0 +1,482 @@
+# PRD: AI-Powered Liveness Detection for eKYC
+## Combating Deepfake & AI-Generated Face Fraud in Southeast Asia
+
+**Version:** 1.0
+**Status:** Draft
+**Author:** Sukumal Plaengrat
+**Last Updated:** 24 Feb 2025
+**PRD Owner:** Product — Identity & Trust
+**Stakeholders:** Engineering (ML/CV), Risk & Compliance, Legal, UX, Merchant Ops
+[**Project Overview Presentation**](https://github.com/user-attachments/files/25709908/ASEAN_Deepfake_Defense.pdf)
+
+---
+
+## Table of Contents
+
+1. [Overview & Problem Statement](#1-overview--problem-statement)
+2. [Goals & Success Metrics](#2-goals--success-metrics)
+3. [User Personas](#3-user-personas)
+4. [User Stories](#4-user-stories)
+5. [Functional Requirements](#5-functional-requirements)
+6. [AI Model Specification](#6-ai-model-specification)
+7. [Non-Functional Requirements](#7-non-functional-requirements)
+8. [Acceptance Criteria](#8-acceptance-criteria)
+9. [Edge Cases & Out of Scope](#9-edge-cases--out-of-scope)
+
+---
+
+## 1. Overview & Problem Statement
+
+### Regional Context
+
+Thailand and Cambodia have emerged as hotspots for organised fraud networks exploiting weaknesses in digital identity verification. Fraudsters—often operating from scam compounds in border regions—use AI-generated faces to defeat eKYC onboarding checks at financial platforms, enabling anonymous money laundering, account takeover, and social engineering at scale.
+
+According to Sumsub's 2024 Identity Fraud Report, **Thailand ranks among the top 10 jurisdictions globally for fraud network concentration**, alongside Cambodia, Vietnam, and other APAC markets. The attack methods have evolved rapidly:
+
+| Attack Generation | Method | Difficulty to Detect |
+|------------------|--------|---------------------|
+| Gen 1 (2020–2022) | Printed photo held to camera | Easy — 2D texture detection |
+| Gen 2 (2022–2023) | Phone screen replaying video | Moderate — screen reflection artifacts |
+| Gen 3 (2023–2025) | Real-time deepfake overlay (DeepFaceLive) | Hard — moves, blinks, responds to prompts |
+| Gen 4 (2025+) | Injection attack — bypass camera entirely | Very Hard — requires signal-level defense |
+
+### Problem
+
+Current eKYC flows on fintech platforms in SEA rely primarily on **passive liveness detection** — asking the user to blink, smile, or turn their head. This approach is now insufficient:
+
+- **Real-time deepfake tools** (e.g., DeepFaceLive) can replicate blink and head-turn responses in under 200ms, defeating prompt-based liveness checks
+- **Injection attacks** bypass the device camera entirely, feeding pre-generated synthetic video directly into the verification data stream — making camera-based PAD (Presentation Attack Detection) blind to the fraud
+- **Synthetic identity fraud** — fabricated persons who have never existed — cost U.S. lenders $3.1 billion in 2023 alone, and the technique is actively spreading to SEA markets
+- Deepfake usage in fraud **quadrupled from 2023 to 2024**, now accounting for 7% of all fraud attempts globally
+
+Locally, KBTG (KBank's tech arm) won a Global Finance 2024 award for eKYC facial fraud innovation — confirming that Thai financial institutions recognise this as a critical unsolved problem.
+
+### Opportunity
+
+Build a **multi-layer AI Liveness Detection system** that goes beyond passive prompt-response, combining:
+1. Passive biometric analysis (texture, lighting, skin properties)
+2. Active challenge-response (randomised, non-predictable prompts)
+3. Temporal signal analysis (multi-frame consistency across the video stream)
+4. Device signal validation (confirm image came from real hardware camera)
+
+This would give fintech platforms in SEA a defensible, standards-aligned (ISO/IEC 30107-3) liveness layer that remains effective against Gen 3 and partially Gen 4 attacks.
+
+---
+
+## 2. Goals & Success Metrics
+
+| Goal | Metric | Baseline | Target |
+|------|--------|----------|--------|
+| Reduce deepfake-based KYC bypass | % of synthetic face attempts successfully blocked | ~58% (industry avg PAD only) | > 92% |
+| Maintain real user pass rate | False Rejection Rate (FRR) for genuine users | Unknown | < 3% |
+| Meet compliance standard | ISO/IEC 30107-3 Level 2 PAD certification | Not certified | Certified |
+| Reduce manual review load | % of sessions requiring human review | ~35% | < 10% |
+| Improve fraud detection speed | Time from session start to liveness verdict | ~8 seconds | < 5 seconds |
+| Support SEA skin tones | Model accuracy variance across skin tones | Unknown | < 2% variance (Fitzpatrick I–VI) |
+
+### Key AI Metrics (Different from Standard Product Metrics)
+
+| Metric | Definition | Target |
+|--------|-----------|--------|
+| APCER | Attack Presentation Classification Error Rate — % of attacks incorrectly accepted as real | < 5% |
+| BPCER | Bona fide Presentation Classification Error Rate — % of real users incorrectly rejected | < 3% |
+| ACER | Average Classification Error Rate = (APCER + BPCER) / 2 | < 4% |
+| Confidence Threshold | Minimum model confidence to auto-approve (below = human review) | ≥ 0.85 |
+
+> **Why these metrics matter for PM:** Standard accuracy (% correct) hides asymmetric costs. A 5% false acceptance on a fraud detection system means 1 in 20 fraudsters gets through — catastrophic. APCER/BPCER forces honest evaluation of the tradeoff between security and user friction.
+
+---
+
+## 3. User Personas
+
+### Persona A — Legitimate New Merchant / Customer (Primary)
+- Thai or Cambodian individual onboarding to a fintech platform for the first time
+- Varies in age (20–55), lighting conditions, device quality, and internet speed
+- Pain point: Existing liveness checks fail or ask them to repeat prompts 3–4 times due to environment
+- Needs: Fast, frictionless verification that works on a mid-range Android in natural Thai light conditions
+
+### Persona B — Fraudster (Adversary Persona)
+- Operates in organised fraud networks in Thailand/Cambodia border regions
+- Has access to: DeepFaceLive, StyleGAN-generated faces, dark web fake ID templates, virtual camera software
+- Attack workflow: Generate synthetic face → match to stolen ID → use virtual camera plugin to inject video into verification stream
+- Motivation: Open mule accounts for money laundering / social engineering scams
+
+### Persona C — Compliance Officer (Internal)
+- Reviews flagged sessions in the human-review queue
+- Needs: Clear confidence scores, visual evidence of why session was flagged, audit trail
+- Pain point: Too many false positives creating manual review backlog
+
+### Persona D — Platform Integration Engineer (B2B)
+- Developer at a fintech partner integrating the liveness SDK into their mobile KYC flow
+- Needs: Clear SDK documentation, webhook events, sandbox environment, error codes
+- Pain point: Black-box liveness APIs with no explainability — cannot debug failed sessions
+
+---
+
+## 4. User Stories
+
+### Legitimate User Flow
+
+**US-001**
+As a **new user**, I want the liveness check to complete in under 5 seconds with clear visual guidance, so that I can pass verification without re-attempting multiple times due to environment or confusion.
+
+**US-002**
+As a **user in low-light conditions**, I want the system to prompt me to improve lighting rather than silently failing, so that I know what to do to complete verification.
+
+**US-003**
+As a **user with a darker skin tone (Fitzpatrick IV–VI)**, I want the model to perform with the same accuracy as for lighter skin tones, so that I am not disproportionately rejected due to model bias.
+
+### Platform / Compliance Flow
+
+**US-004**
+As a **compliance officer**, I want to see a confidence breakdown for every flagged session (which signals triggered the flag), so that I can make an informed human review decision in under 30 seconds.
+
+**US-005**
+As a **compliance officer**, I want sessions that score between 0.70–0.84 confidence (below auto-approve threshold) to be automatically queued for human review, so that borderline cases are not silently rejected or accepted.
+
+**US-006**
+As an **integration engineer**, I want a webhook event fired for every liveness verdict, so that my platform can update the KYC state in real time without polling.
+
+---
+
+## 5. Functional Requirements
+
+### FR-01: Multi-Layer Detection Pipeline
+
+System shall implement three detection layers executed in sequence:
+
+```
+Layer 1: Passive Analysis (always runs, no user prompt)
+  → Texture analysis: micro-texture patterns on real skin vs printed/screen surfaces
+  → Reflection analysis: screen glare, matte vs specular surface reflection
+  → Colour space analysis: RGB vs YCbCr anomalies common in digital faces
+
+Layer 2: Active Challenge-Response (if Layer 1 confidence < 0.90)
+  → Randomised prompt selection from pool of 8+ actions
+  → Examples: "Look left", "Blink twice", "Open mouth", "Nod slowly"
+  → Prompts are randomised to prevent pre-recorded response attacks
+  → Response must occur within a time window (1.5–3 seconds per prompt)
+
+Layer 3: Temporal Consistency Analysis (always runs on captured frames)
+  → Analyse 15+ frames across the session for deepfake artifact signatures
+  → Check for: edge distortions at face boundary, lighting inconsistency across frames,
+    A/V synchronisation anomalies, unnatural smoothness in skin texture over time
+```
+
+- System shall produce a single composite `liveness_score` (0.00–1.00) from all active layers
+- System shall classify result as: `REAL` (≥0.85) / `REVIEW` (0.70–0.84) / `FAKE` (<0.70)
+- System shall log which layer(s) contributed to the score for explainability
+
+### FR-02: Adversarial Attack Detection
+
+System shall specifically detect and flag:
+
+| Attack Type | Detection Signal | Action |
+|-------------|-----------------|--------|
+| Print attack | Flat texture, no subsurface light scatter, no micro-movement | Flag as FAKE |
+| Screen replay | RGB colour shift, screen glare, pixel grid at zoom | Flag as FAKE |
+| Real-time deepfake overlay | Edge artifacts at face boundary, lighting inconsistency, temporal glitches | Flag as FAKE / REVIEW |
+| Injection attack | Device signal validation: cryptographic proof image originated from hardware camera | Flag as FAKE if signal absent |
+
+### FR-03: Device Signal Validation
+
+- System shall request cryptographic attestation that video frames originated from the physical device camera (not a virtual camera plugin)
+- On mobile: use iOS DeviceCheck / Android SafetyNet (Play Integrity API) to validate device integrity
+- Sessions from virtual camera environments shall be automatically flagged for review
+- If attestation cannot be completed (older device), system shall increase challenge-response requirements
+
+### FR-04: Skin Tone Equity
+
+- System shall be evaluated on Fitzpatrick Scale (I–VI) across all skin tone groups
+- APCER and BPCER must not differ by more than 2 percentage points across any Fitzpatrick group
+- Training dataset must include minimum 15% representation from Southeast Asian (Fitzpatrick III–IV) skin tones
+- Monthly bias audit required post-launch using production session data
+
+### FR-05: Human Review Queue
+
+- Sessions scoring 0.70–0.84 shall be placed in a REVIEW queue visible to compliance team
+- Queue shall display: video clip of session, confidence score, breakdown of signals that triggered review, attack type hypothesis
+- Compliance officer can approve / reject with a 1-click decision + mandatory reason selection
+- Queue must show SLA countdown (target: reviewed within 2 hours during business hours)
+
+### FR-06: Verdict Webhooks
+
+System shall fire webhook events for every liveness decision:
+
+**`liveness.passed`** — score ≥ 0.85, auto-approved
+**`liveness.review_required`** — score 0.70–0.84, queued for human review
+**`liveness.failed`** — score < 0.70, auto-rejected
+**`liveness.manual_approved`** — human reviewer approved a REVIEW session
+**`liveness.manual_rejected`** — human reviewer rejected a REVIEW session
+
+---
+
+## 6. AI Model Specification
+
+> **This section exists so PM, Engineering, and stakeholders have shared alignment on the AI design decisions — not because PM implements the model.**
+
+### 6.1 Model Architecture Options
+
+| Approach | How It Works | Pros | Cons | Recommended? |
+|----------|-------------|------|------|-------------|
+| Rule-based heuristics | Hardcoded rules: blink detection, texture threshold | Fast, explainable | Brittle, easy to defeat | ❌ Layer 1 supplement only |
+| Binary classifier (CNN) | Train on real vs fake face images | Well-studied, good baseline | Static — fails on new deepfake techniques | ✅ Layer 1 base model |
+| Vision Transformer (ViT) | Attention-based, captures long-range spatial patterns | Better on subtle artifacts | Compute-heavy, needs more data | ✅ Layer 3 temporal analysis |
+| Ensemble (CNN + ViT + heuristics) | Combine outputs with learned weights | Higher accuracy, harder to fool | Complex to maintain | ✅ **Recommended architecture** |
+
+### 6.2 Training Data Requirements
+
+| Dataset | Source | Purpose |
+|---------|--------|---------|
+| FaceForensics++ | TU Munich (academic) | Deepfake training data — 1,000 videos with 4 manipulation methods |
+| DFDC (Deepfake Detection Challenge) | Facebook AI | 100,000+ videos, diverse demographics |
+| NUAA (Imposter Dataset) | Academic | Print attack and replay attack samples |
+| **SEA Supplement (custom)** | Collected from consenting users | Fitzpatrick III–IV skin tones, SEA lighting conditions, mid-range Android cameras |
+
+> **Critical PM decision:** Off-the-shelf datasets are majority Caucasian/Western. A model trained only on these will have higher BPCER for SEA users — i.e., it will unfairly reject real Thai/Cambodian users more often. Custom data collection is non-negotiable for this market.
+
+### 6.3 Confidence Threshold Rationale
+
+```
+Why 0.85 for auto-approve?
+
+The threshold defines the product's risk tolerance.
+
+If threshold = 0.70:
+  → More users auto-approved (lower friction)
+  → More sophisticated deepfakes get through (higher fraud risk)
+
+If threshold = 0.95:
+  → Almost no deepfakes get through (very secure)
+  → Significantly more real users rejected or sent to manual review (high friction, high cost)
+
+0.85 is the recommended starting point based on:
+  - ISO/IEC 30107-3 Level 2 compliance requires APCER < 5%
+  - Business tolerance for manual review queue (targeting < 10% of sessions)
+  - Pilot data should inform re-calibration after 30 days
+
+This threshold must be a product decision, not a default engineering constant.
+Threshold changes should require PM + Risk sign-off.
+```
+
+### 6.4 Model Degradation & Retraining Policy
+
+| Trigger | Action |
+|---------|--------|
+| APCER rises > 7% in any 7-day rolling window | Immediate alert to ML team + PM |
+| New deepfake attack technique detected in fraud queue | Emergency retrain sprint initiated |
+| Quarterly scheduled review | Evaluate model performance on new attack samples |
+| Bias audit shows > 2% BPCER variance across Fitzpatrick groups | Retrain with corrected dataset |
+
+> **Why this matters:** AI models in adversarial settings degrade. Attackers iterate. A liveness model that's effective today may be obsolete in 6 months without a retraining pipeline. PM must own the policy for when retraining happens — not leave it to engineering judgment.
+
+### 6.5 Fallback Logic
+
+```
+IF device_attestation = FAILED
+  AND liveness_score > 0.85
+  → Override to REVIEW (do not auto-approve without device signal)
+
+IF Layer 1 confidence > 0.92
+  → Skip Layer 2 (active challenge) to reduce friction for clearly real users
+
+IF processing_time > 8 seconds
+  → Return partial result, escalate to REVIEW
+  → Do not timeout user — show "Processing…" state
+
+IF model inference service is unavailable
+  → Route all sessions to human review queue
+  → Do NOT fail-open (auto-approve) — fail-secure (require review)
+```
+
+---
+
+## 7. Non-Functional Requirements
+
+| Category | Requirement |
+|----------|-------------|
+| Latency | End-to-end liveness verdict in < 5 seconds (p95) |
+| Availability | 99.95% uptime — KYC blocking flow, no downtime acceptable |
+| Security | All biometric data encrypted in transit (TLS 1.3) and at rest (AES-256). Biometric data deleted within 30 days post-verification per PDPA Thailand |
+| Compliance | ISO/IEC 30107-3 Level 2 PAD certification. Thailand PDPA (Personal Data Protection Act B.E. 2562). Bank of Thailand eKYC guidelines |
+| Privacy | Biometric data is sensitive under Thailand PDPA — explicit consent required before capture. Data minimisation: store only what is needed for audit, not full video |
+| Bias / Fairness | APCER/BPCER variance < 2% across Fitzpatrick I–VI skin tone groups |
+| Accessibility | Visual + audio guidance available. Works with screen reader navigation up to the camera capture step |
+| Device Support | iOS 13+ and Android 8+ (API Level 26+). Minimum supported camera: 720p at 24fps |
+| Localisation | Thai, Khmer (Cambodian), and English UI prompts |
+
+---
+
+## 8. Acceptance Criteria
+
+### AC-001 — Real User Auto-Approved
+
+**Given** a real user completes the liveness check under normal conditions,
+**When** the composite liveness score is calculated,
+**Then** the score shall be ≥ 0.85 for ≥ 97% of genuine users (BPCER ≤ 3%),
+**And** the verdict `liveness.passed` webhook fires within 500ms of decision,
+**And** the KYC flow proceeds to the next step automatically.
+
+---
+
+### AC-002 — Print Attack Rejected
+
+**Given** a fraudster holds a printed photo of a face in front of the camera,
+**When** Layer 1 passive analysis runs,
+**Then** texture analysis detects absence of subsurface light scattering and micro-movement,
+**And** liveness score is < 0.70,
+**And** session is classified as `FAKE`,
+**And** `liveness.failed` webhook fires with `attack_hypothesis: "print_attack"`,
+**And** user is shown: "We could not verify your identity. Please try again with your actual face."
+
+---
+
+### AC-003 — Deepfake Overlay Detected
+
+**Given** a fraudster uses real-time deepfake software (e.g., DeepFaceLive) during the session,
+**When** Layer 3 temporal analysis runs across 15+ frames,
+**Then** edge artifact detection identifies boundary distortion between the synthetic face and real background,
+**And** liveness score is < 0.85,
+**And** session is classified as `FAKE` or `REVIEW` depending on score,
+**And** compliance team is notified of suspected deepfake attempt.
+
+---
+
+### AC-004 — Injection Attack Blocked
+
+**Given** a fraudster attempts to inject pre-generated video directly into the verification pipeline using virtual camera software,
+**When** device signal validation (FR-03) runs,
+**Then** system detects absence of cryptographic device attestation,
+**And** session is routed to `REVIEW` regardless of liveness score,
+**And** `attack_hypothesis: "injection_attack"` is logged in the compliance queue,
+**And** session is NOT auto-approved even if liveness score exceeds 0.85.
+
+---
+
+### AC-005 — Review Queue SLA
+
+**Given** a session scores 0.70–0.84 and is placed in the REVIEW queue,
+**When** the compliance officer opens the queue,
+**Then** they see: confidence score, signal breakdown, session video clip (max 10 seconds), and attack hypothesis,
+**And** an SLA timer showing time remaining to review (target: 2 hours),
+**And** a 1-click Approve / Reject decision with mandatory reason field,
+**And** `liveness.manual_approved` or `liveness.manual_rejected` webhook fires within 5 seconds of decision.
+
+---
+
+### AC-006 — Skin Tone Equity
+
+**Given** the model is evaluated monthly on the Fitzpatrick bias audit,
+**When** BPCER is measured across Fitzpatrick I–VI groups,
+**Then** no skin tone group shall have a BPCER more than 2 percentage points higher than any other group,
+**And** if variance exceeds 2%, an automatic retraining ticket is created with P1 priority,
+**And** PM and ML lead are notified within 24 hours.
+
+---
+
+## 9. Edge Cases & Out of Scope
+
+### Edge Cases
+
+| Scenario | Expected Behaviour |
+|----------|-------------------|
+| User wearing glasses | Allow. Do not penalise. Glasses are common and model must be trained to handle them. Note: sunglasses → prompt user to remove for liveness check. |
+| Low-light environment | Prompt user with guidance: "Please move to a brighter area." After 2 prompts, route to REVIEW with note "poor lighting conditions" — do not auto-reject. |
+| User with facial hair, makeup, or face paint | Allow normal flow. Model should be trained on diverse appearances. Flag only if beard/makeup is inconsistent with ID document photo (document-face match is a separate module). |
+| Partial face obstruction (e.g., mask) | Prompt: "Please remove any face covering to continue." If user cannot (medical reason), route to manual review. |
+| Identical twins | Liveness detection confirms a real person is present — does not confirm identity match. Identity matching against ID document is a separate concern. |
+| Very slow internet connection | Capture frames locally, batch upload. Do not fail session due to upload latency. Show progress indicator. |
+| Model inference service unavailable | Fail-secure: route all sessions to manual review. Do NOT auto-approve. Alert on-call ML engineer. |
+| User is a minor (< 18) | Liveness detection runs normally. Age verification and parental consent is handled by a separate module — out of scope for this PRD. |
+
+### Out of Scope (v1.0)
+
+- **Voice liveness detection** — audio deepfake detection is a separate product surface (planned v1.3)
+- **Document liveness / tamper detection** — detecting AI-generated fake IDs is a separate pipeline (planned v1.2)
+- **Continuous authentication** — re-verifying user liveness during an active session (planned v2.0)
+- **Emotion/state detection** — detecting if user is under duress (planned v2.0)
+- **Gen 4 injection attack resistance** — full cryptographic injection defense requires hardware-level integration beyond v1.0 scope
+- **Face matching against ID document** — comparison of liveness face to submitted ID photo is handled by a separate identity module
+
+---
+
+## Appendix A: Attack Taxonomy Reference
+
+```
+Presentation Attacks (PAD — ISO 30107-3)          Injection Attacks (IAD — CEN/TS 18099)
+─────────────────────────────────────────         ──────────────────────────────────────
+Print Attack                                       Virtual Camera Plugin
+  └─ Printed photo held to camera                    └─ Feeds pre-recorded video to app
+
+Screen Replay Attack                               API Injection
+  └─ Phone/monitor displaying video                  └─ Feeds manipulated data directly
+                                                        to verification endpoint
+2D Mask Attack
+  └─ Printed face mask worn over real face         Man-in-the-Middle
+                                                     └─ Intercepts and replaces live
+3D Mask Attack                                          camera stream in transit
+  └─ Physical 3D silicone mask
+
+Real-Time Deepfake Overlay
+  └─ DeepFaceLive / similar tools
+     replace face in live camera stream
+```
+
+---
+
+## Appendix B: Webhook Payload Reference
+
+### `liveness.passed`
+```json
+{
+  "event": "liveness.passed",
+  "session_id": "lv_sess_abc123",
+  "user_id": "usr_xyz789",
+  "liveness_score": 0.94,
+  "classification": "REAL",
+  "layers_used": ["passive", "temporal"],
+  "device_attestation": "verified",
+  "processing_time_ms": 3240,
+  "timestamp": "2025-02-24T10:00:04Z"
+}
+```
+
+### `liveness.failed`
+```json
+{
+  "event": "liveness.failed",
+  "session_id": "lv_sess_def456",
+  "liveness_score": 0.31,
+  "classification": "FAKE",
+  "attack_hypothesis": "screen_replay",
+  "signals_triggered": ["screen_glare_detected", "rgb_shift_anomaly", "no_subsurface_scatter"],
+  "device_attestation": "unverified",
+  "timestamp": "2025-02-24T10:01:12Z"
+}
+```
+
+### `liveness.review_required`
+```json
+{
+  "event": "liveness.review_required",
+  "session_id": "lv_sess_ghi789",
+  "liveness_score": 0.77,
+  "classification": "REVIEW",
+  "attack_hypothesis": "deepfake_overlay_suspected",
+  "signals_triggered": ["edge_artifact_detected", "lighting_inconsistency"],
+  "review_sla_deadline": "2025-02-24T12:05:00Z",
+  "timestamp": "2025-02-24T10:05:00Z"
+}
+```
+
+---
+
+## Appendix C: Regulatory Reference
+
+| Regulation | Relevance |
+|-----------|-----------|
+| **Thailand PDPA (B.E. 2562)** | Biometric data is sensitive personal data — requires explicit consent, purpose limitation, and secure storage. Deletion within 30 days post-verification unless legally required to retain. |
+| **Bank of Thailand eKYC Guidelines** | BOT Notification 2563 requires 2-step KYC including biometric identity verification for e-money service operators. Liveness detection fulfills the "verify" step. |
+| **ISO/IEC 30107-3** | International standard for Presentation Attack Detection testing. Level 2 certification requires third-party lab testing. APCER/BPCER are defined in this standard. |
+| **CEN/TS 18099** | European technical specification for Injection Attack Detection. Relevant if platform operates in EU or has EU merchant customers. |
+| **EU AI Act (2024)** | Biometric identification systems are classified as high-risk. Requires transparency documentation, accuracy reporting, and human oversight mechanisms. |
