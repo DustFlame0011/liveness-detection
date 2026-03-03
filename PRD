@@ -5,8 +5,8 @@
 **Status:** Draft
 **Author:** Sukumal Plaengrat
 **Last Updated:** 24 Feb 2025
-**PRD Owner:** Product — Identity & Trust
-**Stakeholders:** Engineering (ML/CV), Risk & Compliance, Legal, UX, Merchant Ops
+ **PRD Owner:** Product — Identity & Trust
+ **Stakeholders:** Engineering (ML/CV), Risk & Compliance, Legal, UX, Merchant Ops
 [**Project Overview Presentation**](https://github.com/user-attachments/files/25709908/ASEAN_Deepfake_Defense.pdf)
 
 ---
@@ -82,8 +82,6 @@ This would give fintech platforms in SEA a defensible, standards-aligned (ISO/IE
 | BPCER | Bona fide Presentation Classification Error Rate — % of real users incorrectly rejected | < 3% |
 | ACER | Average Classification Error Rate = (APCER + BPCER) / 2 | < 4% |
 | Confidence Threshold | Minimum model confidence to auto-approve (below = human review) | ≥ 0.85 |
-
-> **Why these metrics matter for PM:** Standard accuracy (% correct) hides asymmetric costs. A 5% false acceptance on a fraud detection system means 1 in 20 fraudsters gets through — catastrophic. APCER/BPCER forces honest evaluation of the tradeoff between security and user friction.
 
 ---
 
@@ -267,8 +265,6 @@ Threshold changes should require PM + Risk sign-off.
 | New deepfake attack technique detected in fraud queue | Emergency retrain sprint initiated |
 | Quarterly scheduled review | Evaluate model performance on new attack samples |
 | Bias audit shows > 2% BPCER variance across Fitzpatrick groups | Retrain with corrected dataset |
-
-> **Why this matters:** AI models in adversarial settings degrade. Attackers iterate. A liveness model that's effective today may be obsolete in 6 months without a retraining pipeline. PM must own the policy for when retraining happens — not leave it to engineering judgment.
 
 ### 6.5 Fallback Logic
 
