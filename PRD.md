@@ -2,11 +2,17 @@
 ## Combating Deepfake & AI-Generated Face Fraud in Southeast Asia
 
 **Version:** 1.0
+
 **Status:** Draft
+
 **Author:** Sukumal Plaengrat
+
 **Last Updated:** 24 Feb 2025
+
  **PRD Owner:** Product — Identity & Trust
+ 
  **Stakeholders:** Engineering (ML/CV), Risk & Compliance, Legal, UX, Merchant Ops
+ 
 [**Project Overview Presentation**](https://github.com/user-attachments/files/25709908/ASEAN_Deepfake_Defense.pdf)
 
 ---
